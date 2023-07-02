@@ -3,6 +3,7 @@ import os
 import requests
 import json
 import pandas as pd
+import gzip
 
 load_dotenv()
 client_id = os.getenv("CLIENT_ID")
@@ -46,7 +47,7 @@ bearer_token_headers = {
     'Authorization': f"Bearer {access_token}"
 }
 
-# creating category_playlists_records ****************
+# 1. creating category_playlists_records ****************
 category_id = "latin"
 endpoint_url = f"https://api.spotify.com/v1/browse/categories/{category_id}/playlists"
  
@@ -69,9 +70,9 @@ for item in response_dict["playlists"]["items"]:
 
 df_playlists = pd.DataFrame(data=data)
 # print(df_playlists.head())
-# TODO write to csv
+df_playlists.to_csv("output/category_playlists_records.csv")
 
-# creating playlist_records **************************
+# 2. creating playlist_records **************************
 playlist_ids = [playlist.get("id", None) for playlist in data]
 
 data_playlists = []
@@ -81,12 +82,8 @@ for playlist_id in playlist_ids:
         response = requests.get(url=endpoint_url, headers=bearer_token_headers)
         resp_dict = json.loads(response.text)
         data_playlists.append(resp_dict)
-        # followers = resp_dict.get("followers", dict())
-        # playlist_info = {
-        #     "id": playlist_id,
-        #     "followers": followers.get("total", None)
-        # }
-        # data_playlists.append(playlist_info)
+
+data_p2 = []
 
 for playlist in data_playlists:
     followers = playlist.get("followers", dict())
@@ -94,15 +91,93 @@ for playlist in data_playlists:
         "id": playlist.get("id", None),
         "followers": followers.get("total", None)
     }
+    data_p2.append(playlist_info)
 
-df_pl_records = pd.DataFrame(data=data_playlists)
-df_pl_records.to_csv("output/df_pl_records.csv")
+df_pl_records = pd.DataFrame(data=data_p2)
+df_pl_records = df_pl_records.drop_duplicates()
+df_pl_records.to_csv("output/playlist_records.csv")
 # print(df_pl_records.head())
 
-# creating tracks_records ****************************
+# creating tracks_records and rest *******************************
+data_tracks = []
+data_playlist_track = []
+track_artist_id_records = []
+artist_records = []
+
+for playlist in data_playlists:
+    tracks = playlist.get("tracks", None)
+    playlist_id = playlist.get("id", None)
+    if tracks:
+        for item in tracks["items"]:            
+            track = item.get("track", dict())
+            item_added_at = item.get("added_at", None)
+            track_id = track.get("id", None)
+            track_name = track.get("name", None)
+            track_popularity = track.get("popularity", None)
+            track_uri = track.get("uri", None)
+            album = track.get("album", dict())
+            artists = album.get("artists", list())
+            album_type = album.get("album_type", None)
+            track_data = {
+                "album_type": album_type,
+                "track_id": track_id,
+                "name": track_name,
+                "popularity": track_popularity,
+                "uri": track_uri,
+            }
+            data_tracks.append(track_data)
+            track_added_data = {
+                "playlist_id": playlist_id,
+                "playlist_added_at": item_added_at,
+                "track_id": track_id,
+            }
+            data_playlist_track.append(track_added_data)
+            for artist in artists:
+                artist_id = artist.get("id", None)
+                artist_name = artist.get("name", None)
+                tr_art_id_data = {
+                    "track_id": track_id,
+                    "artist_id": artist_id,
+                }
+                track_artist_id_records.append(tr_art_id_data)
+                artist_records.append((artist_id, artist_name))
+
+df_tracks = pd.DataFrame(data_tracks)
+df_tracks = df_tracks.drop_duplicates()
+df_tracks.to_csv("output/tracks_records.csv")
+
+# creating playlist_track_id_records ********************
+df_playlist_track_id_records = pd.DataFrame(data_playlist_track)
+df_playlist_track_id_records.to_csv("output/playlist_track_id_records.csv")
+
+# creating track_artist_id_records **********************
+df_track_artists = pd.DataFrame(track_artist_id_records)
+df_track_artists.to_csv("output/track_artist_id_records.csv")
+
+# creating artists_records ******************************
+df_artists = pd.DataFrame(artist_records, columns=["artist_id", "artist_name"])
+df_artists = df_artists.drop_duplicates()
+df_artists.to_csv("output/artists_records.csv")
+
+# compress the csv files using gzip *********************
+
+def compress_file(file_name, output_dir):
+    with open(file_name, 'rb') as f_in:
+        with gzip.open(os.path.join(output_dir, f'{os.path.basename(file_name)}.gz'), 'wb') as f_out:
+            f_out.writelines(f_in)
+    os.remove(file_name)
 
 
-# creating playlist_track_id_records *****************
-# creating track_artist_id_records *******************
-# creating artists_records ***************************
+def find_compress_files(input_dir, output_dir):
+    for filename in os.listdir(input_dir):
+        if filename.endswith(".csv"):
+            file_path = os.path.join(input_dir, filename)
+            compress_file(file_path, output_dir)
 
+
+# directories are dependent on the environment
+input_dir = 'output'
+output_dir = 'output/compressed'
+find_compress_files(input_dir, output_dir)
+
+print("The files have been successfully written and compressed in output/compressed.")
