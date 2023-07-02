@@ -1,5 +1,9 @@
 # Part 2: How you would you make your script more robust?
 
+## Multiple categories
+
+The variable category_id can be passed to the script as a command-line argument and read using argparse. This would allow the same script to be reused for any category. Changes required: the file category_playlists_records.csv needs to be expanded with one column to add the category name/id. Also if the app.py is going to be executed multiple times, a different output method needs to be used (see point Appending data below).
+
 ## Timestamps
 
 Adding timestamps to each output file would help with versioning and identifying if the data has not been updated recently.
