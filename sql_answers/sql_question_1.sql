@@ -1,3 +1,4 @@
+-- Using common table expressions to do the necessary transformations in a step-by-step way
 with cte1 as -- lowest level aggregation
 (
     select 
@@ -66,7 +67,7 @@ cte_d2 as -- then aggregate to get the count of such sellers per day
     group by Mnth, Day_dt
 )
 
-select -- in the final aggregation create the averages
+select -- in the final aggregation we create the averages
     m.Mnth, 
     count(distinct m.seller_id) as monthly_act_sellers,
     avg(wkly_sellers) as avg_weekly_act_sellers,

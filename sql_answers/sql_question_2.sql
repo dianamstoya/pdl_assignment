@@ -38,11 +38,14 @@ select
     product_category_name, 
     Wk_nr, 
     GMV,
+    -- using window functions to calculate the running totals
+    -- and to shift the current value by one row back (up)
     sum(GMV) 
         over (
             partition by product_category_name 
             order by Wk_nr
         ) as GMV_run_total,
+    -- the delta % is (current GMV - prev GMV) / prev GMV
     (GMV - lag(GMV) 
             over (partition by product_category_name
                   order by Wk_nr
